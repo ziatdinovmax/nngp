@@ -5,7 +5,7 @@ import numpro.distributions as dist
 from numpyro.infer import MCMC, NUTS, init_to_median
 
 
-class Base:
+class GP:
 
     def __init__(self, input_dim, kernel, lengthscale_prior, noise_prior):
         self.kernel = kernel
