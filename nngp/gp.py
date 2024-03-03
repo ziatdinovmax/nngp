@@ -35,9 +35,9 @@ class GP:
         # Initialize mean function at zeros
         f_loc = jnp.zeros(X.shape[0])
         # Sample kernel parameters
-        kernel_params = self._sample_kernel_params()
+        kernel_params = self.sample_kernel_params()
         # Sample observational noise variance
-        noise = self._sample_noise()
+        noise = self.sample_noise()
         # Compute kernel
         k = self.kernel(X, X, kernel_params, noise, self.jitter)
         # Sample y according to the standard Gaussian process formula
@@ -73,7 +73,7 @@ class GP:
             rng_key: random number generator key
         """
         key = rng_key if rng_key is not None else jra.PRNGKey(0)
-        X, y = self._set_data(X, y)
+        X, y = self.set_data(X, y)
         self.X_train = X
         self.y_train = y
 
@@ -91,15 +91,15 @@ class GP:
         self.mcmc.run(key, X, y)
 
         if print_summary:
-            self._print_summary()
+            self.print_summary()
 
-    def _sample_noise(self) -> jnp.ndarray:
+    def sample_noise(self) -> jnp.ndarray:
         """
         Sample observational noise variance
         """
         return numpyro.sample("noise", self.priors.noise_prior)
 
-    def _sample_kernel_params(self) -> Dict[str, jnp.ndarray]:
+    def sample_kernel_params(self) -> Dict[str, jnp.ndarray]:
         """
         Sample kernel parameters
         """
@@ -147,7 +147,7 @@ class GP:
         Returns:
             Posterior mean and variance
         """
-        X_new = self._set_data(X_new)
+        X_new = self.set_data(X_new)
         samples = self.get_samples(chain_dim=False)
         predictive = lambda p: self.compute_gp_posterior(
             X_new, self.X_train, self.y_train, p, noiseless)
@@ -156,15 +156,16 @@ class GP:
         # Return predictive mean and variance averaged over the HMC samples
         return mu_all.mean(0), cov_all.mean(0).diagonal()
 
-    def _sample_from_posterior(self,
-                               rng_key: jnp.ndarray,
-                               X_new: jnp.ndarray,
-                               params: Dict[str, jnp.ndarray],
-                               n_draws: int,
-                               noiseless: bool
-                               ) -> jnp.ndarray:
+    def draw_from_mvn(self,
+                      rng_key: jnp.ndarray,
+                      X_new: jnp.ndarray,
+                      params: Dict[str, jnp.ndarray],
+                      n_draws: int,
+                      noiseless: bool
+                      ) -> jnp.ndarray:
         """
-        Draw predictive samples for X_new from a single estimate of GP posterior parameters
+        Draws predictive samples from multivariate normal distribution
+        at X_new for a single estimate of GP posterior parameters
         """
         mu, cov = self.compute_gp_posterior(
             X_new, self.X_train, self.y_train, params, noiseless)
@@ -197,26 +198,25 @@ class GP:
 
         """
         key = rng_key if rng_key is not None else jra.PRNGKey(0)
-        X_new = self._set_data(X_new)
+        X_new = self.set_data(X_new)
         samples = self.get_samples(chain_dim=False)
         num_samples = len(next(iter(samples.values())))
         vmap_args = (jra.split(key, num_samples), samples)
-        predictive = lambda p1, p2: self._sample_from_posterior(
-            p1, X_new, p2, n_draws, noiseless)
+        predictive = lambda p1, p2: self.draw_from_mvn(p1, X_new, p2, n_draws, noiseless)
         return vmap(predictive)(*vmap_args)
 
     def get_samples(self, chain_dim: bool = False) -> Dict[str, jnp.ndarray]:
         """Get posterior samples (after running the MCMC chains)"""
         return self.mcmc.get_samples(group_by_chain=chain_dim)
 
-    def _set_data(self, X: jnp.ndarray, y: Optional[jnp.ndarray] = None
+    def set_data(self, X: jnp.ndarray, y: Optional[jnp.ndarray] = None
                   ) -> Union[Tuple[jnp.ndarray], jnp.ndarray]:
         X = X if X.ndim > 1 else X[:, None]
         if y is not None:
             return X, y.squeeze()
         return X
 
-    def _print_summary(self) -> None:
+    def print_summary(self) -> None:
         samples = self.get_samples(1)
         numpyro.diagnostics.print_summary(samples)
 
