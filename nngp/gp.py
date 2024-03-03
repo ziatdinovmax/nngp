@@ -174,7 +174,7 @@ class GP:
     def sample_from_posterior(self,
                               X_new: jnp.ndarray,
                               noiseless: bool = False,
-                              draws_per_hmc_sample: int = 100,
+                              n_draws: int = 100,
                               rng_key: jnp.ndarray = None
                               ) -> jnp.ndarray:
         """
@@ -187,8 +187,8 @@ class GP:
                 Noise-free prediction. It is set to False by default as new/unseen data is assumed
                 to follow the same distribution as the training data. Hence, since we introduce a model noise
                 by default for the training data, we also want to include that noise in our prediction.
-            draws_per_hmc_sample:
-                Number of MVN distribution samples to draw for each HMC sample with GP parameters
+            n_draws:
+                Number of MVN distribution samples to draw for each sample with GP parameters
             rng_key:
                 Optional random number generator key
         
@@ -196,13 +196,13 @@ class GP:
             A set of samples from the posterior predictive distribution.
 
         """
-        n = draws_per_hmc_sample
         key = rng_key if rng_key is not None else jra.PRNGKey(0)
         X_new = self._set_data(X_new)
         samples = self.get_samples(chain_dim=False)
         num_samples = len(next(iter(samples.values())))
         vmap_args = (jra.split(key, num_samples), samples)
-        predictive = lambda p1, p2: self._sample_from_posterior(p1, X_new, p2, n, noiseless)
+        predictive = lambda p1, p2: self._sample_from_posterior(
+            p1, X_new, p2, n_draws, noiseless)
         return vmap(predictive)(*vmap_args)
 
     def get_samples(self, chain_dim: bool = False) -> Dict[str, jnp.ndarray]:
@@ -219,5 +219,4 @@ class GP:
     def _print_summary(self) -> None:
         samples = self.get_samples(1)
         numpyro.diagnostics.print_summary(samples)
-
 
