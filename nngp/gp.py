@@ -1,13 +1,22 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Callable, Optional
 import jax.numpy as jnp
 import numpyro
-import numpro.distributions as dist
+import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS, init_to_median
+
+kernel_fn_type = Callable[[jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray], jnp.ndarray],  jnp.ndarray]
 
 
 class GP:
+    """
+    Fully Bayesian exact Gaussian process
+    """
 
-    def __init__(self, input_dim, kernel, lengthscale_prior, noise_prior):
+    def __init__(self,
+                 input_dim: int, kernel: kernel_fn_type,
+                 lengthscale_prior: Optional[dist.Distribution] = None,
+                 noise_prior: Optional[dist.Distribution] = None
+                 ) -> None:
         self.kernel = kernel
         self.kernel_dim = input_dim
         self.lengthscale_prior = lengthscale_prior
