@@ -1,8 +1,12 @@
-from typing import Dict, Tuple, Callable, Optional
+from typing import Dict, Tuple, Callable, Optional, Union
+from jax import vmap
+import jax.random as jra
 import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS, init_to_median
+
+from .priors import GPPriors
 
 kernel_fn_type = Callable[[jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray], jnp.ndarray],  jnp.ndarray]
 
@@ -14,26 +18,28 @@ class GP:
 
     def __init__(self,
                  input_dim: int, kernel: kernel_fn_type,
-                 lengthscale_prior: Optional[dist.Distribution] = None,
-                 noise_prior: Optional[dist.Distribution] = None
+                 priors: Optional[GPPriors] = None,
+                 jitter: float = 1e-6
                  ) -> None:
+        if priors is None:
+            priors = GPPriors()
         self.kernel = kernel
         self.kernel_dim = input_dim
-        self.lengthscale_prior = lengthscale_prior
-        self.noise_prior = noise_prior
+        self.priors = priors
+        self.jitter = jitter
         self.X_train = None
         self.y_train = None
 
-    def model(self, X: jnp.ndarray, y: jnp.ndarray = None, **kwargs: float) -> None:
+    def model(self, X: jnp.ndarray, y: jnp.ndarray = None) -> None:
         """GP probabilistic model with inputs X and targets y"""
         # Initialize mean function at zeros
         f_loc = jnp.zeros(X.shape[0])
         # Sample kernel parameters
         kernel_params = self._sample_kernel_params()
-        # Sample noise
+        # Sample observational noise variance
         noise = self._sample_noise()
         # Compute kernel
-        k = self.kernel(X, X, kernel_params, noise, **kwargs)
+        k = self.kernel(X, X, kernel_params, noise, self.jitter)
         # Sample y according to the standard Gaussian process formula
         numpyro.sample(
             "y",
@@ -41,24 +47,21 @@ class GP:
             obs=y,
         )
 
-    def fit(
-        self,
-        rng_key: jnp.array,
-        X: jnp.ndarray,
-        y: jnp.ndarray,
-        num_warmup: int = 2000,
-        num_samples: int = 2000,
-        num_chains: int = 1,
-        chain_method: str = "sequential",
-        progress_bar: bool = True,
-        print_summary: bool = True,
-        **kwargs: float
-    ) -> None:
+    def fit(self,
+            X: jnp.ndarray,
+            y: jnp.ndarray,
+            num_warmup: int = 2000,
+            num_samples: int = 2000,
+            num_chains: int = 1,
+            chain_method: str = "sequential",
+            progress_bar: bool = True,
+            print_summary: bool = True,
+            rng_key: jnp.array = None
+            ) -> None:
         """
         Run Hamiltonian Monter Carlo to infer the GP parameters
 
         Args:
-            rng_key: random number generator key
             X: 2D feature vector
             y: 1D target vector
             num_warmup: number of HMC warmup states
@@ -67,13 +70,9 @@ class GP:
             chain_method: 'sequential', 'parallel' or 'vectorized'
             progress_bar: show progress bar
             print_summary: print summary at the end of sampling
-            device:
-                optionally specify a cpu or gpu device on which to run the inference;
-                e.g., ``device=jax.devices("cpu")[0]``
-            **jitter:
-                Small positive term added to the diagonal part of a covariance
-                matrix for numerical stability (Default: 1e-6)
+            rng_key: random number generator key
         """
+        key = rng_key if rng_key is not None else jra.PRNGKey(0)
         X, y = self._set_data(X, y)
         self.X_train = X
         self.y_train = y
@@ -89,70 +88,136 @@ class GP:
             progress_bar=progress_bar,
             jit_model_args=False,
         )
-        self.mcmc.run(rng_key, X, y, **kwargs)
+        self.mcmc.run(key, X, y)
 
         if print_summary:
             self._print_summary()
 
     def _sample_noise(self) -> jnp.ndarray:
         """
-        Sample model's noise variance with either default
-        weakly-informative log-normal priors or with a custom prior
-        (must be provided at the initialization stage)
+        Sample observational noise variance
         """
-        if self.noise_prior is not None:
-            noise_prior = self.noise_prior
-        else:
-            noise_prior = dist.LogNormal(0, 1)
-        return numpyro.sample("noise", noise_prior)
+        return numpyro.sample("noise", self.priors.noise_prior)
 
-    def _sample_kernel_params(self, output_scale=True) -> Dict[str, jnp.ndarray]:
+    def _sample_kernel_params(self) -> Dict[str, jnp.ndarray]:
         """
-        Sample kernel parameters with either default
-        weakly-informative log-normal priors or with a custom prior
-        (must be provided at the initialization stage)
+        Sample kernel parameters
         """
-        if self.lengthscale_prior is not None:
-            lscale_prior = self.lengthscale_prior
-        else:
-            lscale_prior = dist.LogNormal(0.0, 1.0)
-        with numpyro.plate("ard", self.kernel_dim):  # ARD kernel
-            length = numpyro.sample("k_length", lscale_prior)
-        if output_scale:
-            scale = numpyro.sample("k_scale", dist.LogNormal(0.0, 1.0))
-        else:
-            scale = numpyro.deterministic("k_scale", jnp.array(1.0))
-        kernel_params = {"k_length": length, "k_scale": scale}
-        return kernel_params
+        with numpyro.plate("ard", self.kernel_dim):
+            length = numpyro.sample("k_length", self.priors.lengthscale_prior)
+        scale = numpyro.sample("k_scale", self.priors.output_scale_prior)
+        return {"k_length": length, "k_scale": scale}
 
-    def compute_posterior_mean_and_cov(self, X_new: jnp.ndarray,
-                                       params: Dict[str, jnp.ndarray],
-                                       noiseless: bool = False,
-                                       **kwargs: float
-                                       ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    def compute_gp_posterior(self, X_new: jnp.ndarray,
+                             X_train: jnp.ndarray, y_train: jnp.ndarray,
+                             params: Dict[str, jnp.ndarray],
+                             noiseless: bool = False,
+                             ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
-        Returns parameters (mean and cov) of multivariate normal posterior
-        for a single sample of trained GP parameters
+        Returns mean and covariance of multivariate normal
+        posterior for a single sample of trained GP parameters
         """
         noise = params["noise"]
         noise_p = noise * (1 - jnp.array(noiseless, int))
         # compute kernel matrices for train and new/test data
-        k_XX = self.kernel(self.X_train, self.X_train, params, noise, **kwargs)
-        k_pp = self.kernel(X_new, X_new, params, noise_p, **kwargs)
+        k_XX = self.kernel(X_train, X_train, params, noise, self.jitter)
+        k_pp = self.kernel(X_new, X_new, params, noise_p, self.jitter)
         k_pX = self.kernel(X_new, self.X_train, params)
         # compute predictive mean covariance
         K_xx_inv = jnp.linalg.inv(k_XX)
-        mean = jnp.matmul(k_pX, jnp.matmul(K_xx_inv, self.y_train))
+        mean = jnp.matmul(k_pX, jnp.matmul(K_xx_inv, y_train))
         cov = k_pp - jnp.matmul(k_pX, jnp.matmul(K_xx_inv, jnp.transpose(k_pX)))
         return mean, cov
 
-    def _set_data(self, X: jnp.ndarray, y: Optional[jnp.ndarray] = None) -> Union[Tuple[jnp.ndarray], jnp.ndarray]:
+    def predict(self,
+                X_new: jnp.ndarray,
+                noiseless: bool = False
+                ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        """
+        Make prediction at X_new points a trained GP model
+
+        Args:
+            X_new:
+                New inputs with *(number of points, number of features)* dimensions
+            noiseless:
+                Noise-free prediction. It is set to False by default as new/unseen data is assumed
+                to follow the same distribution as the training data. Hence, since we introduce a model noise
+                by default for the training data, we also want to include that noise in our prediction.
+
+        Returns:
+            Posterior mean and variance
+        """
+        X_new = self._set_data(X_new)
+        samples = self.get_samples(chain_dim=False)
+        predictive = lambda p: self.compute_gp_posterior(
+            X_new, self.X_train, self.y_train, p, noiseless)
+        # Compute predictive mean and covariance for all HMC samples
+        mu_all, cov_all = vmap(predictive)(samples)
+        # Return predictive mean and variance averaged over the HMC samples
+        return mu_all.mean(0), cov_all.mean(0).diagonal()
+
+    def _sample_from_posterior(self,
+                               rng_key: jnp.ndarray,
+                               X_new: jnp.ndarray,
+                               params: Dict[str, jnp.ndarray],
+                               n_draws: int,
+                               noiseless: bool
+                               ) -> jnp.ndarray:
+        """
+        Draw predictive samples for X_new from a single estimate of GP posterior parameters
+        """
+        mu, cov = self.compute_gp_posterior(
+            X_new, self.X_train, self.y_train, params, noiseless)
+        mvn = dist.MultivariateNormal(mu, cov)
+        return mvn.sample(rng_key, sample_shape=(n_draws,))
+
+    def sample_from_posterior(self,
+                              X_new: jnp.ndarray,
+                              noiseless: bool = False,
+                              draws_per_hmc_sample: int = 100,
+                              rng_key: jnp.ndarray = None
+                              ) -> jnp.ndarray:
+        """
+        Sample from the posterior predictive distribution at X_new
+
+        Args:
+            X_new:
+                New inputs with *(number of points, number of features)* dimensions
+            noiseless:
+                Noise-free prediction. It is set to False by default as new/unseen data is assumed
+                to follow the same distribution as the training data. Hence, since we introduce a model noise
+                by default for the training data, we also want to include that noise in our prediction.
+            draws_per_hmc_sample:
+                Number of MVN distribution samples to draw for each HMC sample with GP parameters
+            rng_key:
+                Optional random number generator key
+        
+        Returns:
+            A set of samples from the posterior predictive distribution.
+
+        """
+        n = draws_per_hmc_sample
+        key = rng_key if rng_key is not None else jra.PRNGKey(0)
+        X_new = self._set_data(X_new)
+        samples = self.get_samples(chain_dim=False)
+        num_samples = len(next(iter(samples.values())))
+        vmap_args = (jra.split(key, num_samples), samples)
+        predictive = lambda p1, p2: self._sample_from_posterior(p1, X_new, p2, n, noiseless)
+        return vmap(predictive)(*vmap_args)
+
+    def get_samples(self, chain_dim: bool = False) -> Dict[str, jnp.ndarray]:
+        """Get posterior samples (after running the MCMC chains)"""
+        return self.mcmc.get_samples(group_by_chain=chain_dim)
+
+    def _set_data(self, X: jnp.ndarray, y: Optional[jnp.ndarray] = None
+                  ) -> Union[Tuple[jnp.ndarray], jnp.ndarray]:
         X = X if X.ndim > 1 else X[:, None]
         if y is not None:
             return X, y.squeeze()
         return X
 
-    def _print_summary(self):
+    def _print_summary(self) -> None:
         samples = self.get_samples(1)
         numpyro.diagnostics.print_summary(samples)
+
 
