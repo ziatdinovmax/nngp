@@ -122,7 +122,7 @@ class GP:
         # compute kernel matrices for train and new/test data
         k_XX = self.kernel(X_train, X_train, params, noise, self.jitter)
         k_pp = self.kernel(X_new, X_new, params, noise_p, self.jitter)
-        k_pX = self.kernel(X_new, self.X_train, params)
+        k_pX = self.kernel(X_new, X_train, params)
         # compute predictive mean covariance
         K_xx_inv = jnp.linalg.inv(k_XX)
         mean = jnp.matmul(k_pX, jnp.matmul(K_xx_inv, y_train))
