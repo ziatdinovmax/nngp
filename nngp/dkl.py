@@ -81,3 +81,12 @@ class DKL(GP):
         predictive = vmap(lambda params: self.nn(X_new, params))
         z = predictive(samples)
         return z
+
+    def print_summary(self, print_nn_weights: bool = False) -> None:
+        samples = self.get_samples(1)
+        if print_nn_weights:
+            numpyro.diagnostics.print_summary(samples)
+        else:
+            list_of_keys = ["k_scale", "k_length", "noise"]
+        numpyro.diagnostics.print_summary(
+            {k: v for (k, v) in samples.items() if k in list_of_keys})
