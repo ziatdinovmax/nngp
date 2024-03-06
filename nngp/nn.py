@@ -22,7 +22,7 @@ def get_mlp(hidden_dim: List[int], activation: str = 'tanh'
     return mlp
 
 
-class MLP(hk.Module):
+class haiku_MLP(hk.Module):
     def __init__(self, hidden_dim, latent_dim, activation='tanh', name=None):
         super().__init__(name=name)
         if activation not in ['relu', 'tanh']:
