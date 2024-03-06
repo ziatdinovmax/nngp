@@ -12,7 +12,7 @@ from .priors import GPPriors
 kernel_fn_type = Callable[[jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray], jnp.ndarray],  jnp.ndarray]
 
 
-class viDKL(DKL):
+class VIDKL(DKL):
 
     """
     Variational Inference-based Deep Kernel Learning
@@ -26,7 +26,7 @@ class viDKL(DKL):
                  hidden_dim: List[int] = None,
                  jitter: float = 1e-6
                  ) -> None:
-        super(viDKL, self).__init__(input_dim, latent_dim, base_kernel, priors, hidden_dim, jitter)
+        super(VIDKL, self).__init__(input_dim, latent_dim, base_kernel, priors, hidden_dim, jitter)
 
     def fit(self, X: jnp.ndarray, y: jnp.ndarray,
             num_steps: int = 1000, step_size: float = 5e-3,
