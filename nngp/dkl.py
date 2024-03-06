@@ -28,7 +28,7 @@ class DKL(GP):
                  activation: str = 'tanh',
                  jitter: float = 1e-6
                  ) -> None:
-        super(DKL, self).__init__(input_dim, base_kernel, priors, jitter)
+        super(DKL, self).__init__(latent_dim, base_kernel, priors, jitter)
         hdim = hidden_dim if hidden_dim is not None else [32, 16, 8]
         self.nn = get_mlp(hdim, activation)
         self.nn_prior = get_mlp_prior(input_dim, latent_dim, hdim)
