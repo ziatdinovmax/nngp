@@ -111,7 +111,7 @@ class GP:
     def compute_gp_posterior(self, X_new: jnp.ndarray,
                              X_train: jnp.ndarray, y_train: jnp.ndarray,
                              params: Dict[str, jnp.ndarray],
-                             noiseless: bool = False,
+                             noiseless: bool = True,
                              ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
         Returns mean and covariance of multivariate normal
@@ -131,7 +131,7 @@ class GP:
 
     def predict(self,
                 X_new: jnp.ndarray,
-                noiseless: bool = False
+                noiseless: bool = True
                 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
         Make prediction at X_new points a trained GP model
@@ -174,7 +174,7 @@ class GP:
 
     def sample_from_posterior(self,
                               X_new: jnp.ndarray,
-                              noiseless: bool = False,
+                              noiseless: bool = True,
                               n_draws: int = 100,
                               rng_key: jnp.ndarray = None
                               ) -> jnp.ndarray:

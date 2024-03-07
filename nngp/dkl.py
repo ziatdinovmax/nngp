@@ -62,7 +62,7 @@ class DKL(GP):
                              X_train: jnp.ndarray,
                              y_train: jnp.ndarray,
                              params: Dict[str, jnp.ndarray],
-                             noiseless: bool = False
+                             noiseless: bool = True
                              ) -> Tuple[jnp.ndarray, jnp.ndarray]:
    
         # Transform X_new and X_train using the neural network to get embeddings
