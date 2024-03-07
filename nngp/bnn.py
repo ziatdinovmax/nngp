@@ -133,9 +133,9 @@ class BNN:
         vmap_args = (jra.split(rng_key, num_samples), samples)
 
         predictive = lambda p1, p2: self.sample_single_posterior_predictive(p1, X_new, p2, n_draws)
-        mu, f_samples = vmap(predictive)(*vmap_args)
+        loc, f_samples = vmap(predictive)(*vmap_args)
 
-        return mu, f_samples
+        return loc.mean(0), f_samples.var(0)
 
     def set_data(self, X: jnp.ndarray, y: Optional[jnp.ndarray] = None
                  ) -> Union[Tuple[jnp.ndarray], jnp.ndarray]:
