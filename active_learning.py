@@ -45,7 +45,7 @@ def measure(fn, X, noise=0.05):
     # Add Gaussian noise
     y_noisy = y + np.random.normal(0, noise, X.shape)
 
-    return y_noisy
+    return y_noisy.squeeze()
 
 
 def fit_predict(model_type, X, y, X_new, kernel=RBFKernel, latent_dim=2, **kwargs):
@@ -94,7 +94,9 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
     """
     X_train = np.copy(X_initial)
     y_train = np.copy(y_initial)
-    history = {"posterior_means": [], "posterior_vars": [], "X_selected": [], "y_selected": []}
+    history = {"posterior_means": [], "posterior_vars": [],
+               "X_selected": [], "y_selected": [],
+               "X_candidate": []}
 
     for step in range(n_steps):
         posterior_mean, posterior_var = fit_predict(
@@ -103,13 +105,14 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
         X_next = X_candidate[max_var_idx].reshape(1, -1)
         y_next = measure(fn, X_next, noise=noise)
 
-        X_train = np.vstack((X_train, X_next))
+        X_train = np.append(X_train, X_next, axis=0)
         y_train = np.append(y_train, y_next)
 
-        history["posterior_means"].append(posterior_mean[max_var_idx])
-        history["posterior_vars"].append(posterior_var[max_var_idx])
+        history["posterior_means"].append(posterior_mean)
+        history["posterior_vars"].append(posterior_var)
         history["X_selected"].append(X_next)
         history["y_selected"].append(y_next)
+        history["X_candidate"].append(X_candidate)
 
         X_candidate = np.delete(X_candidate, max_var_idx, axis=0)
 
@@ -118,11 +121,11 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run active learning routine for specified synthetic function and model type.')
-    parser.add_argument('function_type', type=str, choices=['piecewise_nonlinear', 'nonstationary'],
+    parser.add_argument('function_type', type=str, choices=['piecewise', 'nonstationary'],
                         help='Type of synthetic function to use.')
     parser.add_argument('model_type', type=str, choices=['GP', 'DKL', 'BNN', 'VIDKL'],
                         help='Type of model to use for predictions.')
-    parser.add_argument('--seed', type=int, default=None, help='Optional seed for initializing points.')
+    parser.add_argument('--seed', type=int, default=0, help='Optional seed for initializing points.')
     args = parser.parse_args()
 
     np.random.seed(args.seed)
@@ -133,7 +136,7 @@ if __name__ == "__main__":
         X_initial = np.random.uniform(-7, 7, (4, 1))
         y_initial = measure(fn, X_initial)
         X_candidate = np.linspace(-7, 7, 200).reshape(-1, 1)
-    elif args.function_type == 'piecewise_nonlinear':
+    elif args.function_type == 'piecewise':
         fn = piecewise_nonlinear
         X_initial = np.random.uniform(0, 3, (4, 1))
         y_initial = measure(fn, X_initial)
@@ -156,7 +159,8 @@ if __name__ == "__main__":
     }
 
     # Save data to disc
-    filename = f"active_learning_{args.model_type}_seed_{args.seed}.pkl"
+    filename = f"AL_{args.function_type}_{args.model_type}_seed_{args.seed}.pkl"
+
     with open(filename, 'wb') as file:
         pickle.dump(save_data, file)
     print(f"Data saved to {filename}.")
