@@ -1,9 +1,10 @@
 from __future__ import absolute_import
 
+import pickle
+import numpy as np
+
 from nngp import GP, DKL, VIDKL, BNN
 from nngp.kernels import RBFKernel
-
-import numpy as np
 
 import argparse
 
@@ -112,7 +113,7 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
 
         X_candidate = np.delete(X_candidate, max_var_idx, axis=0)
 
-    return X_train, y_train, history
+    return history
 
 
 if __name__ == "__main__":
@@ -143,6 +144,19 @@ if __name__ == "__main__":
     model_type = args.model_type
 
     # Proceed with the active learning routine
-    X_train, y_train, history = active_learning_loop(
+    history = active_learning_loop(
         fn, model_type, X_initial, y_initial, X_candidate, n_steps=30)
     print("Active learning completed.")
+
+    # Prepare the data to be saved
+    save_data = {
+        "X_initial": X_initial,
+        "y_initial": y_initial,
+        "history": history
+    }
+
+    # Save data to disc
+    filename = f"active_learning_{args.model_type}_seed_{args.seed}.pkl"
+    with open(filename, 'wb') as file:
+        pickle.dump(save_data, file)
+    print(f"Data saved to {filename}.")
