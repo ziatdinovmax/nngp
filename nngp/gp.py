@@ -125,9 +125,9 @@ class GP:
         k_pp = self.kernel(X_new, X_new, params, noise_p, self.jitter)
         k_pX = self.kernel(X_new, X_train, params)
         # compute predictive mean covariance
-        K_xx_cho = linalg.cho_factor(k_XX)
-        mean = jnp.matmul(k_pX, linalg.cho_solve(K_xx_cho, self.y_train))
-        cov = k_pp - jnp.matmul(k_pX, linalg.cho_solve(K_xx_cho, k_pX.T))
+        K_xx_inv = jnp.linalg.inv(k_XX)
+        mean = jnp.matmul(k_pX, jnp.matmul(K_xx_inv, y_train))
+        cov = k_pp - jnp.matmul(k_pX, jnp.matmul(K_xx_inv, jnp.transpose(k_pX)))
         return mean, cov
 
     def predict(self,
