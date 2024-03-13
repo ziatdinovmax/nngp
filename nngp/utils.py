@@ -93,20 +93,13 @@ def nonsmooth2(num_points: int = 25, random_seed: int = None):
 def nonsmooth3(num_points: int = 25, random_seed: int = None):
 
     def f(x):
-        f1 = np.sin(x)
-        f2 = 0.1 * (x - 5)**3
-        f3 = np.exp(0.5 * (x - 7))
-
-        t1 = sigmoid(x, 3.5, 20)  # Transition between f1 and f2
-        t2 = sigmoid(x, 4.5, 12)  # Transition between f2 and f3
-
-        return (1 - t1) * f1 + t1 * (1 - t2) * f2 + t2 * f3
+        return np.sin(x) + x**2 / 10 - 2.5*np.exp(-50 * (x - 2)**2)
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 8, num_points)
+        x = np.random.uniform(-3, 5, num_points)
     else:
-        x = np.linspace(0, 8, num_points)
+        x = np.linspace(-3, 5, num_points)
     x_test = np.linspace(x.min(), x.max(), 200)
 
     return x, x_test, f(x), f(x_test)
