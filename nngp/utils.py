@@ -55,7 +55,26 @@ def piecewise3(num_points: int = 25, random_seed: int = None) -> np.ndarray:
     return x, x_test, f(x), f(x_test)
 
 
-def nonstationary1(num_points: int = 25, random_seed: int = None) -> np.ndarray:
+
+def nonstationary1(num_points: int = 25, random_seed: int = None):
+
+    def f(x):
+        transition = 1 / (1 + np.exp(-10 * (x - np.pi))) 
+        smooth_part = np.sin(2 * x)
+        non_smooth_part = 0.3 * np.sin(10 * x) + 0.3 * np.cos(20 * x) + 0.3 * np.sin(x)**2
+        return (1 - transition) * smooth_part + transition * non_smooth_part
+
+    if random_seed is not None:
+        np.random.seed(random_seed)
+        x = np.random.uniform(0, 5.5, num_points)
+    else:
+        x = np.linspace(0, 5.5, num_points)
+    x_test = np.linspace(x.min(), x.max(), 200)
+
+    return x, x_test, f(x), f(x_test)
+
+
+def nonstationary2(num_points: int = 25, random_seed: int = None) -> np.ndarray:
 
     def f(x):
         y_smooth = np.sin(0.7 * x) * (np.abs(x) >= 2)
@@ -67,24 +86,6 @@ def nonstationary1(num_points: int = 25, random_seed: int = None) -> np.ndarray:
         x = np.random.uniform(-7, 7, num_points)
     else:
         x = np.linspace(-7, 7, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
-
-    return x, x_test, f(x), f(x_test)
-
-
-def nonstationary2(num_points: int = 25, random_seed: int = None):
-
-    def f(x):
-        transition = 1 / (1 + np.exp(-10 * (x - np.pi))) 
-        smooth_part = np.sin(2 * x)
-        non_smooth_part = 0.1 * np.sin(10 * x) + 0.1 * np.cos(20 * x) + 0.3 * np.sin(x)**2
-        return (1 - transition) * smooth_part + transition * non_smooth_part
-
-    if random_seed is not None:
-        np.random.seed(random_seed)
-        x = np.random.uniform(0, 5.5, num_points)
-    else:
-        x = np.linspace(0, 5.5, num_points)
     x_test = np.linspace(x.min(), x.max(), 200)
 
     return x, x_test, f(x), f(x_test)
