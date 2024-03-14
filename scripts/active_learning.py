@@ -10,24 +10,99 @@ from nngp.kernels import RBFKernel
 import argparse
 
 
-def piecewise_nonlinear(x: np.ndarray) -> np.ndarray:
-    return np.piecewise(
-        x,
-        [x < 1, (x >= 1) & (x < 2), x >= 2],
-        [
-            lambda x: 1 * x**2.5,
-            lambda x: 0.5 * x**1.5 - 2,
-            lambda x: 1 * np.exp(0.5 * (x - 2)) + 1
+def piecewise1():
+
+    x_start = 0
+    x_stop = 3
+
+    def f(x):
+        return np.piecewise(
+            x, [x < 1.7, x >= 1.7],
+            [lambda x: x**4.5, lambda x: 0.5*x**2.5])
+
+    return (x_start, x_stop), f
+
+
+def piecewise2():
+
+    x_start = 0
+    x_stop = 10
+
+    def f(x):
+        return np.piecewise(
+            x, [x < 5, x >= 5],
+            [lambda x: np.sin(x), lambda x: np.sin(x) + 3])
+
+    return (x_start, x_stop), f
+
+
+def piecewise3():
+
+    x_start = 0
+    x_stop = 3
+
+    def f(x):
+        return np.piecewise(
+            x, [x < 1, (x >= 1) & (x < 2), x >= 2],
+            [lambda x: 1 * x**2.5,
+             lambda x: 0.5 * x**1.5 - 2,
+             lambda x: 1 * np.exp(0.5 * (x - 2)) + 1]
+             )
+    
+    return (x_start, x_stop), f
+
+
+
+def nonstationary1():
+
+    x_start = 0
+    x_stop = 5.5
+
+    def f(x):
+        transition = 1 / (1 + np.exp(-10 * (x - np.pi))) 
+        smooth_part = np.sin(2 * x)
+        non_smooth_part = 0.3 * np.sin(10 * x) + 0.3 * np.cos(20 * x) + 0.3 * np.sin(x)**2
+        return (1 - transition) * smooth_part + transition * non_smooth_part
+
+    return (x_start, x_stop), f
+
+
+def nonstationary2():
+
+    x_start = -7
+    x_stop = 8
+
+    def f(x):
+        y_smooth = np.sin(0.7 * x) * (np.abs(x) >= 2)
+        y_non_smooth = np.sin(10 * x) * np.exp(-np.abs(2 * x)) * (np.abs(x) < 2)
+        return y_smooth + y_non_smooth
+
+    return (x_start, x_stop), f
+    
+
+def nonstationary3():
+
+    x_start = 0
+    x_stop = 10
+
+    def f(x):
+        spike_params = [
+            (1, 2, 0.1),   # (amplitude, position, width)
+            (-0.5, 4, 0.15),
+            (1.5, 6, 0.1),
+            (-1, 8, 0.1),
+            (0.75, 9, 0.1)
         ]
-    )
+        # Generate the smooth base curve
+        y = np.sin(x)
+        # Add each spike to the base curve
+        for a, b, c in spike_params:
+            y += a * np.exp(-((x - b)**2) / (2 * c**2))
+        return y
+    
+    return (x_start, x_stop), f
 
-
-def nonstationary(x: np.ndarray) -> np.ndarray:
-    y_smooth = np.sin(0.7 * x) * (np.abs(x) >= 2)
-    y_non_smooth = np.sin(10 * x) * np.exp(-np.abs(2 * x)) * (np.abs(x) < 2)
-    return y_smooth + y_non_smooth
-
-
+    
 def measure(fn, X, noise=0.05):
     """
     Generates noisy data using a specified synthetic function at given input point(s).
@@ -91,7 +166,7 @@ def fit_predict(model_type, X, y, X_new, kernel=RBFKernel, latent_dim=2, **kwarg
 def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
                          latent_dim=2, noise=0.05, n_steps=30, **kwargs):
     """
-    Active learning routine to iteratively improve model predictions by measuring at points of maximum uncertainty.
+    Active learning routine
     """
     X_train = np.copy(X_initial)
     y_train = np.copy(y_initial)
@@ -100,20 +175,32 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
                "X_candidate": []}
 
     for step in range(n_steps):
+
+        # Fit the model with the current training data and predict over the candidate points
         posterior_mean, posterior_var = fit_predict(
             model_type, X_train, y_train, X_candidate, latent_dim=latent_dim, **kwargs)
+        
+        # Select the next point to measure based on the highest variance
         max_var_idx = np.argmax(posterior_var.squeeze())
         X_next = X_candidate[max_var_idx].reshape(1, -1)
         y_next = measure(fn, X_next, noise=noise)
-
+        
+        # Update training set with the newly selected point
         X_train = np.append(X_train, X_next, axis=0)
         y_train = np.append(y_train, y_next)
+
+        # Compute the true values for X_candidate without noise
+        y_true = fn(X_candidate)
+
+        # Calculate MSE between the model's predictions and the true values
+        mse = np.mean((posterior_mean - y_true)**2)
 
         history["posterior_means"].append(posterior_mean)
         history["posterior_vars"].append(posterior_var)
         history["X_selected"].append(X_next)
         history["y_selected"].append(y_next)
         history["X_candidate"].append(X_candidate)
+        history["mse"].append(mse)
 
         X_candidate = np.delete(X_candidate, max_var_idx, axis=0)
 
@@ -122,37 +209,33 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run active learning routine for specified synthetic function and model type.')
-    parser.add_argument('function_type', type=str, choices=['piecewise', 'nonstationary'],
+    parser.add_argument('function_type', type=str, choices=['piecewise1', 'piecewise2', 'piecewise3', 'nonstationary1', 'nonstationary2', 'nonstationary3'],
                         help='Type of synthetic function to use.')
     parser.add_argument('model_type', type=str, choices=['GP', 'DKL', 'BNN', 'VIDKL'],
                         help='Type of model to use for predictions.')
-    parser.add_argument('--seed', type=int, default=0, help='Optional seed for initializing points.')
+    parser.add_argument('--seed', type=int, default=0, help='Optional seed for reproducibility.')
     args = parser.parse_args()
 
     np.random.seed(args.seed)
 
-    # Function selection
-    if args.function_type == 'nonstationary':
-        fn = nonstationary
-        X_initial = np.random.uniform(-7, 7, (4, 1))
-        y_initial = measure(fn, X_initial)
-        X_candidate = np.linspace(-7, 7, 200).reshape(-1, 1)
-    elif args.function_type == 'piecewise':
-        fn = piecewise_nonlinear
-        X_initial = np.random.uniform(0, 3, (4, 1))
-        y_initial = measure(fn, X_initial)
-        X_candidate = np.linspace(0, 3, 200).reshape(-1, 1)
-    else:
-        raise ValueError("Unknown function type specified.")
+    function_mapping = {
+        'piecewise1': piecewise1,
+        'piecewise2': piecewise2,
+        'piecewise3': piecewise3,
+        'nonstationary1': nonstationary1,
+        'nonstationary2': nonstationary2,
+        'nonstationary3': nonstationary3,
+    }
 
-    model_type = args.model_type
+    (x_start, x_stop), fn = function_mapping[args.function_type]()
+    X_initial = np.linspace(x_start, x_stop, 4).reshape(-1, 1)
+    y_initial = measure(fn, X_initial)
+    X_candidate = np.linspace(x_start, x_stop, 200).reshape(-1, 1)
 
-    # Proceed with the active learning routine
-    history = active_learning_loop(
-        fn, model_type, X_initial, y_initial, X_candidate, n_steps=30)
+    history = active_learning_loop(fn, args.model_type, X_initial, y_initial, X_candidate, n_steps=30)
+
     print("Active learning completed.")
 
-    # Prepare the data to be saved
     save_data = {
         "X_initial": X_initial,
         "y_initial": y_initial,
