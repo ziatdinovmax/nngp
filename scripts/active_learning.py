@@ -1,4 +1,5 @@
-from __future__ import absolute_import
+import sys
+sys.path.append("..")
 
 import pickle
 import numpy as np
