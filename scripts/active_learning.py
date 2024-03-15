@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 sys.path.append("..")
 
@@ -172,7 +174,7 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
     y_train = np.copy(y_initial)
     history = {"posterior_means": [], "posterior_vars": [],
                "X_selected": [], "y_selected": [],
-               "X_candidate": []}
+               "X_candidate": [], "mse": []}
 
     for step in range(n_steps):
 
