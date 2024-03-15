@@ -72,7 +72,7 @@ def nonstationary1():
 def nonstationary2():
 
     x_start = -7
-    x_stop = 8
+    x_stop = 7
 
     def f(x):
         y_smooth = np.sin(0.7 * x) * (np.abs(x) >= 2)
@@ -126,7 +126,7 @@ def measure(fn, X, noise=0.05):
     return y_noisy.squeeze()
 
 
-def fit_predict(model_type, X, y, X_new, kernel=RBFKernel, latent_dim=2, **kwargs):
+def fit_predict(model_type, X, y, X_new, X_full=None, kernel=RBFKernel, latent_dim=2, **kwargs):
     """
     Initializes and trains a model based on the model_type argument.
 
@@ -162,7 +162,13 @@ def fit_predict(model_type, X, y, X_new, kernel=RBFKernel, latent_dim=2, **kwarg
 
     posterior_mean, posterior_var = model.predict(X_new)
 
-    return posterior_mean, posterior_var
+    if X_full is not None:
+        posterior_mean_full, posterior_var_full = model.predict(X_full)
+    else:
+        posterior_mean_full = posterior_mean
+        posterior_var_full = posterior_var
+
+    return (posterior_mean, posterior_var), (posterior_mean_full, posterior_var_full)
 
 
 def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
@@ -172,6 +178,9 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
     """
     X_train = np.copy(X_initial)
     y_train = np.copy(y_initial)
+    X_test = np.copy(X_candidate)
+    y_test = fn(X_test).squeeze()
+
     history = {"posterior_means": [], "posterior_vars": [],
                "X_selected": [], "y_selected": [],
                "X_candidates": [], "mse": []}
@@ -179,8 +188,8 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
     for step in range(n_steps):
 
         # Fit the model with the current training data and predict over the candidate points
-        posterior_mean, posterior_var = fit_predict(
-            model_type, X_train, y_train, X_candidate, latent_dim=latent_dim, **kwargs)
+        (posterior_mean, posterior_var), (posterior_mean_full, posterior_var_full) = fit_predict(
+            model_type, X_train, y_train, X_candidate, X_test, latent_dim=latent_dim, **kwargs)
         
         # Select the next point to measure based on the highest variance
         max_var_idx = np.argmax(posterior_var.squeeze())
@@ -190,15 +199,12 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
         # Update training set with the newly selected point
         X_train = np.append(X_train, X_next, axis=0)
         y_train = np.append(y_train, y_next)
+        
+        # Calculate MSE between the model's predictions and the true values over the full parameter space
+        mse = np.mean((posterior_mean_full.squeeze() - y_test)**2)
 
-        # Compute the true values for X_candidate without noise
-        y_true = fn(X_candidate)
-
-        # Calculate MSE between the model's predictions and the true values
-        mse = np.mean((posterior_mean - y_true.squeeze())**2)
-
-        history["posterior_means"].append(posterior_mean)
-        history["posterior_vars"].append(posterior_var)
+        history["posterior_means"].append(posterior_mean_full)
+        history["posterior_vars"].append(posterior_var_full)
         history["X_selected"].append(X_next)
         history["y_selected"].append(y_next)
         history["X_candidates"].append(X_candidate)
@@ -234,7 +240,11 @@ if __name__ == "__main__":
     y_initial = measure(fn, X_initial)
     X_candidate = np.linspace(x_start, x_stop, 200).reshape(-1, 1)
 
-    history = active_learning_loop(fn, args.model_type, X_initial, y_initial, X_candidate, n_steps=30)
+    noise_level = 0.1 if args.function_type.startswith('piecewise') else 0.05
+
+    history = active_learning_loop(
+        fn, args.model_type, X_initial, y_initial, X_candidate,
+        n_steps=30, noise=noise_level)
 
     print("Active learning completed.")
 
