@@ -174,7 +174,7 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
     y_train = np.copy(y_initial)
     history = {"posterior_means": [], "posterior_vars": [],
                "X_selected": [], "y_selected": [],
-               "X_candidate": [], "mse": []}
+               "X_candidates": [], "mse": []}
 
     for step in range(n_steps):
 
@@ -195,13 +195,13 @@ def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
         y_true = fn(X_candidate)
 
         # Calculate MSE between the model's predictions and the true values
-        mse = np.mean((posterior_mean - y_true)**2)
+        mse = np.mean((posterior_mean - y_true.squeeze())**2)
 
         history["posterior_means"].append(posterior_mean)
         history["posterior_vars"].append(posterior_var)
         history["X_selected"].append(X_next)
         history["y_selected"].append(y_next)
-        history["X_candidate"].append(X_candidate)
+        history["X_candidates"].append(X_candidate)
         history["mse"].append(mse)
 
         X_candidate = np.delete(X_candidate, max_var_idx, axis=0)
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     }
 
     # Save data to disc
-    filename = f"AL_{args.function_type}_{args.model_type}_seed_{args.seed}.pkl"
+    filename = f"AL_{args.function_type}_{args.model_type}.pkl"
 
     with open(filename, 'wb') as file:
         pickle.dump(save_data, file)
