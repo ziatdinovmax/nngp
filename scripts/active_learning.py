@@ -172,7 +172,7 @@ def fit_predict(model_type, X, y, X_new, X_full=None, kernel=RBFKernel, latent_d
 
 
 def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
-                         latent_dim=2, noise=0.05, n_steps=30, **kwargs):
+                         latent_dim=2, noise=0.05, n_steps=40, **kwargs):
     """
     Active learning routine
     """
@@ -244,7 +244,7 @@ if __name__ == "__main__":
 
     history = active_learning_loop(
         fn, args.model_type, X_initial, y_initial, X_candidate,
-        n_steps=30, noise=noise_level)
+        n_steps=40, noise=noise_level)
 
     print("Active learning completed.")
 
