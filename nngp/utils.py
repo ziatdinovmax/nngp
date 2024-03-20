@@ -6,20 +6,26 @@ def piecewise1(num_points: int = 25, random_seed: int = None) -> np.ndarray:
     def f(x):
         return np.piecewise(
             x, [x < 1.7, x >= 1.7],
-            [lambda x: x**4.5, lambda x: 0.5*x**2.5])
+            [lambda x: x**2.5, lambda x: 0.9*x**1.2])
+    
+    start = 0
+    stop = 3
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 3, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(0, 3, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
 
 
 def piecewise2(num_points: int = 25, random_seed: int = None):
 
+    start = 0
+    stop = 10
+    
     def f(x):
         return np.piecewise(
             x, [x < 5, x >= 5],
@@ -27,10 +33,10 @@ def piecewise2(num_points: int = 25, random_seed: int = None):
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 10, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(0, 10, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
 
@@ -45,37 +51,45 @@ def piecewise3(num_points: int = 25, random_seed: int = None) -> np.ndarray:
              lambda x: 1 * np.exp(0.5 * (x - 2)) + 1]
              )
 
+    start = 0
+    stop = 3
+
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 3, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(0, 3, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
 
 
-
 def nonstationary1(num_points: int = 25, random_seed: int = None):
 
+    start = 0.2
+    stop = 4.8
+    
     def f(x):
         transition = 1 / (1 + np.exp(-10 * (x - np.pi))) 
         smooth_part = np.sin(2 * x)
-        non_smooth_part = 0.3 * np.sin(10 * x) + 0.3 * np.cos(20 * x) + 0.3 * np.sin(x)**2
+        non_smooth_part = 0.3 * np.sin(30 * x) + 0.3 * np.cos(10 * x)
         return (1 - transition) * smooth_part + transition * non_smooth_part
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 5.5, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(0, 5.5, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
 
 
 def nonstationary2(num_points: int = 25, random_seed: int = None) -> np.ndarray:
 
+    start = -7
+    stop = 7
+    
     def f(x):
         y_smooth = np.sin(0.7 * x) * (np.abs(x) >= 2)
         y_non_smooth = np.sin(10 * x) * np.exp(-np.abs(2 * x)) * (np.abs(x) < 2)
@@ -83,16 +97,19 @@ def nonstationary2(num_points: int = 25, random_seed: int = None) -> np.ndarray:
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(-7, 7, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(-7, 7, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
 
 
 def nonstationary3(num_points: int = 25, random_seed: int = None):
 
+    start = 0
+    stop = 10
+    
     def f(x):
         spike_params = [
             (1, 2, 0.1),   # (amplitude, position, width)
@@ -110,13 +127,9 @@ def nonstationary3(num_points: int = 25, random_seed: int = None):
 
     if random_seed is not None:
         np.random.seed(random_seed)
-        x = np.random.uniform(0, 10, num_points)
+        x = np.random.uniform(start, stop, num_points)
     else:
-        x = np.linspace(0, 10, num_points)
-    x_test = np.linspace(x.min(), x.max(), 200)
+        x = np.linspace(start, stop, num_points)
+    x_test = np.linspace(start, stop, 200)
 
     return x, x_test, f(x), f(x_test)
-
-
-def sigmoid(x, x0, k):
-    return 1 / (1 + np.exp(-k * (x - x0)))

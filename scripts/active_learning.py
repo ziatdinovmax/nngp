@@ -20,7 +20,7 @@ def piecewise1():
     def f(x):
         return np.piecewise(
             x, [x < 1.7, x >= 1.7],
-            [lambda x: x**4.5, lambda x: 0.5*x**2.5])
+            [lambda x: x**2.5, lambda x: 0.9*x**1.2])
 
     return (x_start, x_stop), f
 
@@ -54,21 +54,20 @@ def piecewise3():
     return (x_start, x_stop), f
 
 
-
 def nonstationary1():
 
-    x_start = 0
-    x_stop = 5.5
+    x_start = 0.2
+    x_stop = 4.8
 
     def f(x):
         transition = 1 / (1 + np.exp(-10 * (x - np.pi))) 
         smooth_part = np.sin(2 * x)
-        non_smooth_part = 0.3 * np.sin(10 * x) + 0.3 * np.cos(20 * x) + 0.3 * np.sin(x)**2
+        non_smooth_part = 0.3 * np.sin(30 * x) + 0.3 * np.cos(10 * x)
         return (1 - transition) * smooth_part + transition * non_smooth_part
 
     return (x_start, x_stop), f
 
-
+    
 def nonstationary2():
 
     x_start = -7
@@ -172,7 +171,7 @@ def fit_predict(model_type, X, y, X_new, X_full=None, kernel=RBFKernel, latent_d
 
 
 def active_learning_loop(fn, model_type, X_initial, y_initial, X_candidate,
-                         latent_dim=2, noise=0.05, n_steps=40, **kwargs):
+                         latent_dim=2, noise=0.05, n_steps=60, **kwargs):
     """
     Active learning routine
     """
@@ -240,11 +239,11 @@ if __name__ == "__main__":
     y_initial = measure(fn, X_initial)
     X_candidate = np.linspace(x_start, x_stop, 200).reshape(-1, 1)
 
-    noise_level = 0.1 if args.function_type.startswith('piecewise') else 0.05
+    noise_level = 0.1 if args.function_type.startswith('piecewise') else 0.02
 
     history = active_learning_loop(
         fn, args.model_type, X_initial, y_initial, X_candidate,
-        n_steps=40, noise=noise_level)
+        n_steps=60, noise=noise_level)
 
     print("Active learning completed.")
 
@@ -255,7 +254,7 @@ if __name__ == "__main__":
     }
 
     # Save data to disc
-    filename = f"AL_{args.function_type}_{args.model_type}.pkl"
+    filename = f"active_learning_output/AL_{args.function_type}_{args.model_type}.pkl"
 
     with open(filename, 'wb') as file:
         pickle.dump(save_data, file)
